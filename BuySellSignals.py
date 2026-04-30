@@ -2,39 +2,32 @@ import numpy as np
 import pandas as pd
 import yfinance as yf
 
-from PreSelectionTests import clean_price_data
-pd.set_option('display.max_rows', None)
-
 #----------------------------------------------------#
 #  Method to generate price data for selected pairs  #
 #----------------------------------------------------#
 def generate_dataframes(df):
     dataframes = []
 
-    for index, row in df.iterrows():
+    for _, row in df.iterrows():
         ticker1, ticker2 = row['Ticker 1'], row['Ticker 2']
-        data_i, data_j = clean_price_data(ticker1, ticker2)
-
-        if data_i is not None and data_j is not None:
-
-            raw_price_data1 = yf.download(ticker1, start='2017-01-01', end='2024-01-01')['Close']
-            raw_price_data2 = yf.download(ticker2, start='2017-01-01', end='2024-01-01')['Close']
-
-            common_dates = raw_price_data1.index.intersection(raw_price_data2.index)
-            raw_price_data1 = raw_price_data1[common_dates]
-            raw_price_data2 = raw_price_data2[common_dates]
-
+        try:
+            raw1 = yf.download(ticker1, start='2017-01-01', end='2024-01-01', progress=False, auto_adjust=True)['Close'].squeeze()
+            raw2 = yf.download(ticker2, start='2017-01-01', end='2024-01-01', progress=False, auto_adjust=True)['Close'].squeeze()
+            raw1, raw2 = raw1.dropna(), raw2.dropna()
+            common_dates = raw1.index.intersection(raw2.index)
+            raw1, raw2 = raw1.loc[common_dates], raw2.loc[common_dates]
             result_df = pd.DataFrame({
-                'Ticker 1': [ticker1] * len(data_i),
-                'Ticker 2': [ticker2] * len(data_j),
-                'Date': raw_price_data1.index,
-                'Raw Price Data 1': raw_price_data1,
-                'Raw Price Data 2': raw_price_data2,
+                'Ticker 1': ticker1,
+                'Ticker 2': ticker2,
+                'Raw Price Data 1': raw1,
+                'Raw Price Data 2': raw2,
             })
-
             dataframes.append(result_df)
+        except Exception as e:
+            print(f"Error loading {ticker1}/{ticker2}: {e}")
 
     return dataframes
+
 #----------------------------------------------------#
 # Generate signals based on initial z-score strategy:#
 #                                                    #
@@ -94,6 +87,7 @@ def profit(trades_df, price_df, fee=0.001):
     trades_df['Pair_Profit'] = 0.0
     trades_df['Cumulative_Return'] = 1.0
     position_b = 1
+
     for index, row in trades_df.iterrows():
         date1 = pd.to_datetime(row['Date1'], format='%m-%d-%Y')
         date2 = pd.to_datetime(row['Date2'], format='%m-%d-%Y')
@@ -102,28 +96,24 @@ def profit(trades_df, price_df, fee=0.001):
             sell_a = price_df.loc[date2, 'Raw Price Data 1']
             short_b = price_df.loc[date1, 'Raw Price Data 2']
             cover_b = price_df.loc[date2, 'Raw Price Data 2'] * (1 + fee)
-            # position_b = buy_a / short_b
             pair_profit = ((sell_a / buy_a - 1) + (position_b * (1 - cover_b / short_b)))
         else:
             short_a = price_df.loc[date1, 'Raw Price Data 1']
             cover_a = price_df.loc[date2, 'Raw Price Data 1'] * (1 + fee)
             buy_b = price_df.loc[date1, 'Raw Price Data 2'] * (1 + fee)
             sell_b = price_df.loc[date2, 'Raw Price Data 2']
-            # position_b = short_a / buy_b
             pair_profit = ((position_b * (sell_b / buy_b) - 1) + (1 - cover_a / short_a))
-
 
         trades_df.at[index, 'Pair_Profit'] = pair_profit
         cumulative_return = trades_df['Cumulative_Return'].iloc[index - 1] * (1 + pair_profit)
         trades_df.at[index, 'Cumulative_Return'] = cumulative_return
-        trades_df['Win Rate'] = np.where(trades_df['Pair_Profit'] > 0, 1, 0)
+
+    trades_df['Win Rate'] = np.where(trades_df['Pair_Profit'] > 0, 1, 0)
 
     return trades_df
 
 def leveraged_profit(profit_df, leverage_ratio):
-
     leveraged_df = profit_df.copy()
     leveraged_df['Pair_Profit'] = leveraged_df['Pair_Profit'] * leverage_ratio
     leveraged_df['Cumulative_Return'] = (1 + leveraged_df['Pair_Profit']).cumprod()
-
     return leveraged_df

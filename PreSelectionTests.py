@@ -99,8 +99,9 @@ def pairs_measures(selected_tickers):
     return pairs_measures
 
 
-test_stocks = ['MSFT', 'META', 'GOOG', 'NFLX']
-measures = pairs_measures(test_stocks)
+if __name__ == '__main__':
+    test_stocks = ['MSFT', 'META', 'GOOG', 'NFLX']
+    measures = pairs_measures(test_stocks)
 
 def rank_pairs(pair_dict):
     pairs = list(pair_dict.keys())

@@ -1,44 +1,117 @@
-# Cointegrated Equity Pairs Trading
+# Cointegrated Pairs Trading
+
+A market-neutral equity pairs trading strategy backtested on S&P 500 constituents (2017–2024), with two signal methods: a classic z-score spread strategy and a novel hybrid RSI+z-score indicator.
+
+![Python](https://img.shields.io/badge/Python-3776AB?style=flat&logo=python&logoColor=white)
+![Pandas](https://img.shields.io/badge/Pandas-150458?style=flat&logo=pandas&logoColor=white)
+![NumPy](https://img.shields.io/badge/NumPy-013243?style=flat&logo=numpy&logoColor=white)
 
 ## Overview
 
-This project, completed during my internship at New England Investment Consulting Group, focuses on implementing a cointegrated pairs trading strategy using historical data of S&P 500 constituents. The goal is to identify pairs of securities that exhibit a cointegrated relationship and use this relationship to generate profitable trading signals. The strategy leverages the mean-reverting nature of cointegrated pairs to execute long and short positions based on the divergence and convergence of their price movements. 
+The strategy screens S&P 500 stocks by fundamentals, ranks all candidate pairs across seven statistical measures (SSD, price ratio, correlation, covariance, and magnitude-squared coherence), and selects the top 20 cointegrated pairs via Engle-Granger testing. Two trading methods are then backtested over the selected pairs:
 
-The project tests the strategy using both the traditional z-score method as well as a novel indicator I created which factors in Relative Strength Index values. Further explanation is given below. The key of this strategy is that it is market-neutral, signified by the market beta values close to 0, and in fact performs best duing market downturns. With a low standard deviation and variance of returns, the strategy is best implemented with leverage in order to outperform the market with a strong risk-return profile. 
+- **Z-Score Strategy** — opens positions when the rolling z-score of the price ratio crosses a threshold, closing when it mean-reverts.
+- **Indicator Strategy** — combines a sigmoid-normalized z-score with the RSI spread between the two assets into a composite indicator on [0, 100], triggering entries and exits at configurable bounds.
 
-As seen in the portfolio return shown below, the strategy greatly outperforms the market during downturns and, in general, is far more stable with less downside risk than investing in the market alone, making it the ideal candidate for a leveraged strategy. The below plot shows the ***unleveraged*** returns of the pairs trading strategy with various moving averages (lookback windows), transaction costs included. 
+Both methods target near-zero market beta by entering delta-neutral long/short positions on each pair simultaneously. The strategy is designed to outperform during market downturns and exhibits significantly lower drawdowns than passive index investing.
 
-<img width="998" alt="Screen Shot 2024-04-02 at 6 10 35 PM" src="https://github.com/aryamann04/cointegrated-pairs-trading/assets/140534650/294130a0-a2dd-4b72-b25c-6790b42a5ac1">
+<img width="998" alt="Portfolio vs S&P 500" src="https://github.com/aryamann04/cointegrated-pairs-trading/assets/140534650/294130a0-a2dd-4b72-b25c-6790b42a5ac1">
 
+## Results (2017–2024, 20 equity pairs, unleveraged)
 
-## Repository Structure 
+| Strategy  | CAGR  | Sharpe | Beta    | VaR (95%) | CVaR (95%) |
+|-----------|-------|--------|---------|-----------|------------|
+| Z-Score   | 7.63% | 0.490  | 0.00324 | −0.28%    | −0.65%     |
+| Indicator | 8.21% | 0.759  | 0.00306 | −0.27%    | −0.61%     |
 
-- ```InitialScreening.py``` Queries Wikipedia to find current S&P 500 index constituents and filters them by basic fundamental criteria such as market capitalization, trailing EPS, and P/E ratio to find stable, large companies.
-  
-- ```PreselectionTests.py``` Tests and ranks all possible pairs of tickers returned by the initial screening by 7 criteria outlined by Brunetti & DeLuca (2023). These measures include the sum of squared deviations of log prices, the price ratio of log prices, correlation and covariances of the returns and log prices, and magnitude squared coherence.
-  
-- ```CointegrationTests.py``` Runs an Engel-Granger test of cointegration of the securities starting with the first ranked security pair and moving down ranks. When a pair exhibits strong cointegration (p<0.03), the pair is appended to a list. The first 25 pairs which satisfy this criteria are then ranked by the variance of their price ratio. The 20 pairs with the highest variance are chosen to trade.
-  
-- ```BuySellSignals.py``` Determines buy and sell signals via 2 methods. The classic method uses the 'extremeness' of the current price ratio of the two securities relative to a rolling mean. This is done by calculating a z-score, and if the z-score is above (below) a certain critical cutoff, then the ratio is deemed to be over (under) priced. For instance, if we have security A and security B, with a price ratio of p(A)/p(B), if the z-score is abnormally high, then we would sell A and buy B. If the z-score is abnormally low, then the ratio is cheap so we would buy A and sell B.
-  
-- ```Indicator.py``` Creates a novel way (the second method) to trade pairs. In addition to the z-score of the price ratio between the two securities, the signed difference between the RSI (Relative Strength Index) values of the two securities is used as another way to determine the relative price of the securities. For instance, if A has an RSI of 90 and and B has an RSI of 10, then the difference RSI(A) - RSI(B) would be 80 and would signify that the pair has a large difference in value. The indicator maps this information to the interval [0, 100] with 0 signifying a very cheap ratio and 100 an expensive ratio. Trading with this indicator improves the risk-return profile of the strategy significantly.
-  
-- ```PerformanceMetrics.py``` Contains methods to calculate essential performance metrics of the portfolio including compounded annual growth rate, Sharpe ratio, standard deviation, variance, Value-at-Risk, conditional Value-at-Risk, and Beta.
-  
-- ```Backtesting.py``` Contains methods to calculate profit and plot returns. The dynamic framework and the development of the data process allows various asset classes, including cryptocurrencies and commodities in addition to equities, to be backtested with this pairs trading algorithm. 
+Z-Score: z-threshold 1.1, MA window 175 days. Indicator: bounds [40, 52], MA window 150 days.
 
-## Results 
+## Features
 
-### Z-Score Strategy (unleveraged): 
-With a critical z-score of 1.1 and a look-back moving average window of 175 days, the strategy achieved a return of ***7.63%***, a market beta of ***0.00324***, and a Sharpe ratio of ***0.490***. The daily 95% VaR and cVaR achieved are ***-0.28%*** and ***-0.65%***. 
-### Indicator Strategy (unleveraged): 
-With a lower bound of 40 and upper bound of 52 and a look-back moving average window of 150 days, the strategy achieved a return of ***8.21%***, a market beta of ***0.00306***, and a Sharpe ratio of ***0.759***. The daily 95% VaR and cVaR achieved are ***-0.27%*** and ***-0.61%***. 
+- **Fundamental screening** — filters S&P 500 universe by market cap, trailing EPS, and P/E ratio via yfinance
+- **7-criteria pair ranking** — composite ranking across SSD, price ratio proximity, log-price correlation, return correlation, log-price covariance, return covariance, and magnitude-squared coherence (Brunetti & DeLuca 2023)
+- **Engle-Granger cointegration testing** — selects pairs with p-value < 0.03; final 20 chosen by ratio variance
+- **Z-score signal generation** — rolling mean/std of price ratio with configurable window and threshold
+- **Hybrid RSI indicator** — `Indicator = 100 × (0.5 × sigmoid(z) + 0.5 × sigmoid((RSI₁ − RSI₂) / 10))`, signals on configurable lower/upper bounds
+- **Delta-neutral P&L** — 0.1% transaction fee applied on entry; optional leverage scaling
+- **Performance metrics** — Sharpe ratio, CAGR, annualized variance, VaR (95%), CVaR (95%), win rate, market beta
+- **Parameter optimization** — grid search over z-threshold × MA window (z-score) or lower/upper bounds (indicator), optimizable for Sharpe or CAGR
+- **Commodity pairs support** — pre-selected commodity ETF pairs (PPLT/PALL, WEAT/UNL, etc.) as an alternative universe
 
-## View Reports 
-January 2024: 
-[Initial Proposal](https://github.com/aryamann04/NEWEIGQuantInternship/files/14254910/Quant.Initial.Proposal.pdf)
+## Project Structure
 
-May 2024: 
-[Latest Report](https://github.com/aryamann04/NEWEIGQuantInternship/files/14887638/Week.7.Report.pptx.pdf)
+```
+cointegrated-pairs-trading/
+├── Backtesting.py          # Entry point — runs backtest, plots results, exposes optimizer
+├── BuySellSignals.py       # Data loading, z-score signal generation, P&L calculation
+├── Indicator.py            # RSI calculation and hybrid indicator signal generation
+├── PerformanceMetrics.py   # Sharpe, CAGR, VaR, CVaR, beta, win rate
+├── InitialScreening.py     # S&P 500 scraper and fundamental screener
+├── PreSelectionTests.py    # 7-measure pair ranking (run once to select pairs)
+├── CointegrationTests.py   # Engle-Granger cointegration test and variance ranking
+└── requirements.txt
+```
 
-A special thank you to the Quantitative Research team at New England Investment Consulting Group for giving me guidance and advice through the development of this project. 
+## Setup
+
+**Prerequisites:** Python 3.9+
+
+```bash
+pip install -r requirements.txt
+```
+
+## Usage
+
+**Run the full backtest:**
+
+```bash
+python Backtesting.py
+```
+
+Loads the 20 pre-selected cointegrated equity pairs, runs both strategies with default parameters, prints performance metrics, and plots cumulative returns vs. the S&P 500.
+
+**Default parameters:**
+
+| Parameter | Value |
+|---|---|
+| Lookback window (`ma`) | 50 days |
+| Z-score threshold | 1.5 |
+| Indicator lower bound | 45 |
+| Indicator upper bound | 55 |
+| Transaction fee | 0.1% |
+
+**Parameter optimization** (uncomment in `Backtesting.py`):
+
+```bash
+# Grid search over indicator bounds or z-score/MA window, optimizing Sharpe or CAGR
+# Uncomment the relevant line at the bottom of Backtesting.py, then:
+python Backtesting.py
+```
+
+**Re-running the full pair selection pipeline** (one-time research step):
+
+```python
+from InitialScreening import screen
+from PreSelectionTests import pairs_measures, rank_pairs
+from CointegrationTests import coint_test, rank_var
+
+tickers = screen(mkt_cap=10e9, eps=2.0, pe_low=10, pe_high=40)
+measures = pairs_measures(tickers)
+ranked = rank_pairs(measures)
+cointegrated = coint_test(ranked)
+final_pairs = rank_var(cointegrated)
+print(final_pairs)
+```
+
+**With leverage:**
+
+```python
+from Backtesting import run_strategy, generate_dataframes, ranked_df
+
+df_list = generate_dataframes(ranked_df)
+portfolio = run_strategy(
+    50, df_list,
+    use_indicator_strategy=True, lower_bound=45, upper_bound=55,
+    use_leverage=True, leverage_ratio=2.0
+)
+```
